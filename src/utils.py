@@ -1,60 +1,62 @@
 import os
 import sys
-from src.exception import CustomException
-from src.logger import logging
+
+import numpy as np 
 import pandas as pd
+import dill
+import pickle
+from sklearn.metrics import r2_score
+from sklearn.model_selection import GridSearchCV
 
-from sklearn.model_selection import train_test_split
-from dataclasses import dataclass
+from src.exception import CustomException
 
-from src.components.data_transformation import DataTransformation
-from src.components.data_transformation import DataTransformationConfig
+def save_object(file_path, obj):
+    try:
+        dir_path = os.path.dirname(file_path)
 
-from src.components.model_trainer import ModelTrainerConfig
-from src.components.model_trainer import ModelTrainer
-@dataclass
-class DataIngestionConfig:
-    train_data_path: str=os.path.join('artifacts',"train.csv")
-    test_data_path: str=os.path.join('artifacts',"test.csv")
-    raw_data_path: str=os.path.join('artifacts',"data.csv")
+        os.makedirs(dir_path, exist_ok=True)
 
-class DataIngestion:
-    def __init__(self):
-        self.ingestion_config=DataIngestionConfig()
+        with open(file_path, "wb") as file_obj:
+            pickle.dump(obj, file_obj)
 
-    def initiate_data_ingestion(self):
-        logging.info("Entered the data ingestion method or component")
-        try:
-            df=pd.read_csv('notebook\data\stud.csv')
-            logging.info('Read the dataset as dataframe')
+    except Exception as e:
+        raise CustomException(e, sys)
+    
+def evaluate_models(X_train, y_train,X_test,y_test,models,param):
+    try:
+        report = {}
 
-            os.makedirs(os.path.dirname(self.ingestion_config.train_data_path),exist_ok=True)
+        for i in range(len(list(models))):
+            model = list(models.values())[i]
+            para=param[list(models.keys())[i]]
 
-            df.to_csv(self.ingestion_config.raw_data_path,index=False,header=True)
+            gs = GridSearchCV(model,para,cv=3)
+            gs.fit(X_train,y_train)
 
-            logging.info("Train test split initiated")
-            train_set,test_set=train_test_split(df,test_size=0.2,random_state=42)
+            model.set_params(**gs.best_params_)
+            model.fit(X_train,y_train)
 
-            train_set.to_csv(self.ingestion_config.train_data_path,index=False,header=True)
+            #model.fit(X_train, y_train)  # Train model
 
-            test_set.to_csv(self.ingestion_config.test_data_path,index=False,header=True)
+            y_train_pred = model.predict(X_train)
 
-            logging.info("Inmgestion of the data iss completed")
+            y_test_pred = model.predict(X_test)
 
-            return(
-                self.ingestion_config.train_data_path,
-                self.ingestion_config.test_data_path
+            train_model_score = r2_score(y_train, y_train_pred)
 
-            )
-        except Exception as e:
-            raise CustomException(e,sys)
-        
-if __name__=="__main__":
-    obj=DataIngestion()
-    train_data,test_data=obj.initiate_data_ingestion()
+            test_model_score = r2_score(y_test, y_test_pred)
 
-    data_transformation=DataTransformation()
-    train_arr,test_arr,_=data_transformation.initiate_data_transformation(train_data,test_data)
+            report[list(models.keys())[i]] = test_model_score
 
-    modeltrainer=ModelTrainer()
-    print(modeltrainer.initiate_model_trainer(train_arr,test_arr))
+        return report
+
+    except Exception as e:
+        raise CustomException(e, sys)
+    
+def load_object(file_path):
+    try:
+        with open(file_path, "rb") as file_obj:
+            return pickle.load(file_obj)
+
+    except Exception as e:
+        raise CustomException(e, sys)
