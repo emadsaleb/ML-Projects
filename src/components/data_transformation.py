@@ -68,7 +68,6 @@ class DataTransformation:
 
             logging.info("Read train and test data completed")
 
-            # 🔥 IMPORTANT: unify column names
             train_df.columns = train_df.columns.str.strip().str.lower().str.replace(" ", "_").str.replace("/", "_")
             test_df.columns = test_df.columns.str.strip().str.lower().str.replace(" ", "_").str.replace("/", "_")
 
